@@ -3,84 +3,333 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Морской бой</title>
+    <title>Морской бой | Игра</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Quicksand:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1><i class="fas fa-anchor"></i> Морской бой</h1>
-            <div class="game-info">
-                <div class="score">Попадания: <span id="player-hits">0</span> | <span id="bot-hits">0</span></div>
-                <div class="status" id="status">Расставьте ваши корабли</div>
+    <!-- Фоновые элементы моря -->
+    <div class="sea-background">
+        <div class="sea-surface"></div>
+        <div class="sea-depth"></div>
+        
+        <!-- Волны -->
+        <div class="wave wave1"></div>
+        <div class="wave wave2"></div>
+        <div class="wave wave3"></div>
+        
+        <!-- Плавающие элементы -->
+        <div class="floating seaweed1">🌿</div>
+        <div class="floating seaweed2">🌿</div>
+        <div class="floating bubble bubble1"></div>
+        <div class="floating bubble bubble2"></div>
+        <div class="floating bubble bubble3"></div>
+        <div class="floating bubble bubble4"></div>
+        
+        <!-- Рыбки -->
+        <div class="fish fish1">🐠</div>
+        <div class="fish fish2">🐡</div>
+        <div class="fish fish3">🐟</div>
+    </div>
+
+    <!-- Основной контейнер -->
+    <div class="main-container">
+        <!-- Заголовок -->
+        <header class="game-header">
+            <div class="title-container">
+                <h1><i class="fas fa-water"></i> Морской бой</h1>
+                <p class="subtitle">Сражение на морских просторах</p>
+            </div>
+            
+            <div class="game-stats">
+                <div class="stat">
+                    <i class="fas fa-crosshairs"></i>
+                    <span>Ваши попадания: <strong id="player-hits">0</strong></span>
+                </div>
+                <div class="stat">
+                    <i class="fas fa-robot"></i>
+                    <span>Противник: <strong id="bot-hits">0</strong></span>
+                </div>
+                <div class="stat">
+                    <i class="fas fa-ship"></i>
+                    <span>Ваши корабли: <strong id="player-ships">10</strong></span>
+                </div>
             </div>
         </header>
 
-        <div class="game-controls">
-            <button id="start-game" class="btn"><i class="fas fa-play"></i> Начать игру</button>
-            <button id="random-ships" class="btn"><i class="fas fa-random"></i> Расставить случайно</button>
-            <button id="rotate-ship" class="btn"><i class="fas fa-rotate"></i> Повернуть корабль</button>
-            <button id="clear-board" class="btn"><i class="fas fa-trash"></i> Очистить поле</button>
-            <select id="difficulty" class="btn">
-                <option value="easy">Легкий уровень</option>
-                <option value="medium" selected>Средний уровень</option>
-                <option value="hard">Сложный уровень</option>
-            </select>
+        <!-- Статус игры -->
+        <div class="status-bar">
+            <div class="status-message" id="status">
+                <i class="fas fa-info-circle"></i>
+                <span>Расставьте ваши корабли на поле</span>
+            </div>
+            <div class="turn-indicator">
+                <div class="turn-dot"></div>
+                <span id="turn-text">Ваш ход</span>
+            </div>
         </div>
 
+        <!-- Управление -->
+        <div class="controls-panel">
+            <button id="start-game" class="control-btn primary">
+                <i class="fas fa-play"></i>
+                <span>Начать игру</span>
+            </button>
+            
+            <button id="random-ships" class="control-btn">
+                <i class="fas fa-dice"></i>
+                <span>Случайная расстановка</span>
+            </button>
+            
+            <button id="rotate-ship" class="control-btn">
+                <i class="fas fa-sync-alt"></i>
+                <span>Повернуть корабль</span>
+            </button>
+            
+            <button id="clear-board" class="control-btn danger">
+                <i class="fas fa-eraser"></i>
+                <span>Очистить поле</span>
+            </button>
+            
+            <div class="difficulty-select">
+                <i class="fas fa-brain"></i>
+                <select id="difficulty">
+                    <option value="easy">Лёгкий</option>
+                    <option value="medium" selected>Средний</option>
+                    <option value="hard">Сложный</option>
+                </select>
+            </div>
+            
+            <div class="sound-control">
+                <i class="fas fa-volume-up"></i>
+                <input type="range" id="volume" min="0" max="100" value="50">
+            </div>
+        </div>
+
+        <!-- Игровая область -->
         <div class="game-area">
-            <div class="player-section">
-                <h2><i class="fas fa-user"></i> Ваше поле</h2>
-                <div class="ships-remaining">
-                    <div class="ship-counter" id="player-ships">10/10</div>
+            <!-- Игрок -->
+            <div class="player-area">
+                <div class="area-header">
+                    <h2><i class="fas fa-user"></i> Ваш флот</h2>
+                    <div class="ship-counter">
+                        <div class="counter-bubble" id="player-counter">10</div>
+                        <span>кораблей</span>
+                    </div>
                 </div>
-                <div class="grid" id="player-grid"></div>
+                
+                <div class="grid-wrapper">
+                    <div class="grid-label">
+                        <div class="numbers">
+                            <span>1</span><span>2</span><span>3</span><span>4</span>
+                            <span>5</span><span>6</span><span>7</span><span>8</span>
+                            <span>9</span><span>10</span>
+                        </div>
+                    </div>
+                    <div class="grid-container">
+                        <div class="grid" id="player-grid"></div>
+                        <div class="grid-overlay"></div>
+                    </div>
+                    <div class="letters">
+                        <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span>
+                        <span>F</span><span>G</span><span>H</span><span>I</span><span>J</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="divider">
-                <div class="vs">VS</div>
+            <!-- Разделитель -->
+            <div class="battle-divider">
+                <div class="divider-line"></div>
+                <div class="vs-circle">
+                    <span>VS</span>
+                    <div class="vs-sub">Морское сражение</div>
+                </div>
+                <div class="divider-line"></div>
             </div>
 
-            <div class="bot-section">
-                <h2><i class="fas fa-robot"></i> Противник (ИИ)</h2>
-                <div class="ships-remaining">
-                    <div class="ship-counter" id="bot-ships">10/10</div>
+            <!-- Противник -->
+            <div class="bot-area">
+                <div class="area-header">
+                    <h2><i class="fas fa-robot"></i> Флот противника</h2>
+                    <div class="ship-counter">
+                        <div class="counter-bubble" id="bot-counter">10</div>
+                        <span>кораблей</span>
+                    </div>
                 </div>
-                <div class="grid" id="bot-grid"></div>
+                
+                <div class="grid-wrapper">
+                    <div class="grid-label">
+                        <div class="numbers">
+                            <span>1</span><span>2</span><span>3</span><span>4</span>
+                            <span>5</span><span>6</span><span>7</span><span>8</span>
+                            <span>9</span><span>10</span>
+                        </div>
+                    </div>
+                    <div class="grid-container">
+                        <div class="grid" id="bot-grid"></div>
+                        <div class="grid-overlay"></div>
+                    </div>
+                    <div class="letters">
+                        <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span>
+                        <span>F</span><span>G</span><span>H</span><span>I</span><span>J</span>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="ship-selector">
-            <h3>Выберите корабль для размещения:</h3>
-            <div class="ships-to-place" id="ships-to-place">
+        <!-- Выбор кораблей -->
+        <div class="ship-selection">
+            <div class="selection-header">
+                <h3><i class="fas fa-ship"></i> Ваши корабли</h3>
+                <div class="orientation-info">
+                    <span>Ориентация: </span>
+                    <span class="orientation-value" id="orientation">Горизонтальная</span>
+                </div>
+            </div>
+            
+            <div class="ships-list" id="ships-list">
                 <!-- Корабли будут добавлены через JS -->
             </div>
-            <div class="ship-legends">
-                <div class="legend-item"><span class="legend-cell ship-cell"></span> - Корабль</div>
-                <div class="legend-item"><span class="legend-cell hit-cell"></span> - Попадание</div>
-                <div class="legend-item"><span class="legend-cell miss-cell"></span> - Промах</div>
-                <div class="legend-item"><span class="legend-cell sunk-cell"></span> - Потоплен</div>
+            
+            <div class="ship-info">
+                <div class="info-item">
+                    <div class="color-sample ship-color"></div>
+                    <span>Корабль</span>
+                </div>
+                <div class="info-item">
+                    <div class="color-sample hit-color"></div>
+                    <span>Попадание</span>
+                </div>
+                <div class="info-item">
+                    <div class="color-sample miss-color"></div>
+                    <span>Промах</span>
+                </div>
+                <div class="info-item">
+                    <div class="color-sample sunk-color"></div>
+                    <span>Потоплен</span>
+                </div>
             </div>
         </div>
 
-        <div class="log" id="game-log">
-            <h3>Ход игры:</h3>
-            <div class="log-content" id="log-content"></div>
+        <!-- Журнал игры -->
+        <div class="game-log">
+            <div class="log-header">
+                <h3><i class="fas fa-scroll"></i> Журнал сражения</h3>
+                <button id="clear-log" class="mini-btn">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+            <div class="log-content" id="log-content">
+                <div class="log-entry welcome">
+                    <span class="time">[Добро пожаловать]</span>
+                    <span class="message">Начните расстановку кораблей!</span>
+                </div>
+            </div>
         </div>
 
-        <footer>
-            <p>Морской бой v1.0 | Разработано для GitHub Pages | Управление: кликните по клетке противника для выстрела</p>
+        <!-- Футер -->
+        <footer class="game-footer">
+            <div class="footer-content">
+                <div class="game-info">
+                    <i class="fas fa-gamepad"></i>
+                    <span>Морской бой v2.1 | Полная версия с ИИ</span>
+                </div>
+                <div class="instructions">
+                    <i class="fas fa-mouse-pointer"></i>
+                    <span>Выберите корабль слева → Кликните на ваше поле</span>
+                </div>
+                <div class="credits">
+                    <i class="fas fa-heart"></i>
+                    <span>С любовью к морским сражениям</span>
+                </div>
+            </div>
         </footer>
     </div>
 
-    <div id="win-modal" class="modal">
-        <div class="modal-content">
-            <h2 id="win-title">Победа!</h2>
-            <p id="win-message">Вы победили бота!</p>
-            <button id="play-again" class="btn"><i class="fas fa-redo"></i> Играть снова</button>
+    <!-- Модальное окно победы -->
+    <div class="modal-overlay" id="win-modal">
+        <div class="modal-container">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="trophy" id="trophy-icon">🏆</div>
+                    <h2 id="win-title">Победа!</h2>
+                </div>
+                
+                <div class="modal-body">
+                    <p id="win-message">Вы одержали победу в морском сражении!</p>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <i class="fas fa-crosshairs"></i>
+                            <span class="stat-label">Выстрелы</span>
+                            <span class="stat-value" id="stat-shots">0</span>
+                        </div>
+                        <div class="stat-box">
+                            <i class="fas fa-bullseye"></i>
+                            <span class="stat-label">Точность</span>
+                            <span class="stat-value" id="stat-accuracy">0%</span>
+                        </div>
+                        <div class="stat-box">
+                            <i class="fas fa-ship"></i>
+                            <span class="stat-label">Потоплено</span>
+                            <span class="stat-value" id="stat-sunk">0</span>
+                        </div>
+                        <div class="stat-box">
+                            <i class="fas fa-clock"></i>
+                            <span class="stat-label">Время</span>
+                            <span class="stat-value" id="stat-time">0:00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="performance">
+                        <div class="performance-bar">
+                            <div class="performance-fill" id="performance-fill"></div>
+                        </div>
+                        <span class="performance-text" id="performance-text">Отличный результат!</span>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button id="play-again" class="modal-btn primary">
+                        <i class="fas fa-redo"></i>
+                        <span>Играть снова</span>
+                    </button>
+                    <button id="share-result" class="modal-btn">
+                        <i class="fas fa-share-alt"></i>
+                        <span>Поделиться</span>
+                    </button>
+                    <button id="close-modal" class="modal-btn">
+                        <i class="fas fa-times"></i>
+                        <span>Закрыть</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
+
+    <!-- Аудио элементы -->
+    <audio id="sound-shot" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-water-sci-fi-gun-shot-2585.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="sound-hit" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-deep-explosion-echo-1184.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="sound-miss" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-water-splash-3006.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="sound-ship-sunk" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-ship-explosion-1994.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="sound-win" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="sound-lose" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-sad-game-over-trombone-471.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="sound-sea" preload="auto" loop>
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-ocean-waves-loop-1240.mp3" type="audio/mpeg">
+    </audio>
 
     <script src="game.js"></script>
 </body>
