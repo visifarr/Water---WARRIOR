@@ -21,6 +21,16 @@ class BattleshipGame {
         this.lastHit = null;
         this.huntingMode = false;
         this.huntDirections = [];
+        this.shotCount = 0;
+        this.startTime = null;
+        this.gameTime = 0;
+        this.volume = 0.5;
+        
+        // Статистика
+        this.playerShots = 0;
+        this.playerSuccessfulShots = 0;
+        this.botShots = 0;
+        this.botSuccessfulShots = 0;
         
         this.init();
     }
@@ -30,6 +40,52 @@ class BattleshipGame {
         this.setupEventListeners();
         this.createShipSelector();
         this.updateStatus("Расставьте ваши корабли на поле");
+        this.startGameTimer();
+        this.setupAudio();
+    }
+    
+    setupAudio() {
+        this.audio = {
+            shot: document.getElementById('sound-shot'),
+            hit: document.getElementById('sound-hit'),
+            miss: document.getElementById('sound-miss'),
+            sunk: document.getElementById('sound-ship-sunk'),
+            win: document.getElementById('sound-win'),
+            lose: document.getElementById('sound-lose'),
+            sea: document.getElementById('sound-sea')
+        };
+        
+        // Устанавливаем громкость
+        this.updateVolume();
+        
+        // Запускаем фоновый звук моря
+        this.audio.sea.volume = this.volume * 0.3;
+        this.audio.sea.play().catch(e => console.log("Автовоспроизведение звука заблокировано"));
+    }
+    
+    updateVolume() {
+        const volume = this.volume;
+        Object.values(this.audio).forEach(audio => {
+            if (audio) {
+                audio.volume = volume;
+            }
+        });
+    }
+    
+    playSound(sound) {
+        if (this.audio[sound]) {
+            this.audio[sound].currentTime = 0;
+            this.audio[sound].play().catch(e => console.log("Ошибка воспроизведения звука"));
+        }
+    }
+    
+    startGameTimer() {
+        this.startTime = Date.now();
+        setInterval(() => {
+            if (this.gameStarted) {
+                this.gameTime = Math.floor((Date.now() - this.startTime) / 1000);
+            }
+        }, 1000);
     }
     
     createGrids() {
@@ -39,53 +95,82 @@ class BattleshipGame {
         playerGrid.innerHTML = '';
         botGrid.innerHTML = '';
         
+        // Создаем ячейки для игрока
         for (let row = 0; row < this.gridSize; row++) {
             for (let col = 0; col < this.gridSize; col++) {
-                // Игровое поле игрока
-                const playerCell = document.createElement('div');
-                playerCell.className = 'cell';
-                playerCell.dataset.row = row;
-                playerCell.dataset.col = col;
-                playerCell.addEventListener('click', () => this.placeShip(row, col));
+                const playerCell = this.createCell(row, col, 'player');
                 playerGrid.appendChild(playerCell);
                 
-                // Игровое поле бота
-                const botCell = document.createElement('div');
-                botCell.className = 'cell';
-                botCell.dataset.row = row;
-                botCell.dataset.col = col;
-                botCell.addEventListener('click', () => this.playerAttack(row, col));
+                const botCell = this.createCell(row, col, 'bot');
                 botGrid.appendChild(botCell);
             }
         }
     }
     
+    createCell(row, col, type) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.row = row;
+        cell.dataset.col = col;
+        
+        if (type === 'player') {
+            cell.addEventListener('click', () => this.placeShip(row, col));
+        } else {
+            cell.addEventListener('click', () => this.playerAttack(row, col));
+        }
+        
+        return cell;
+    }
+    
     createShipSelector() {
-        const container = document.getElementById('ships-to-place');
+        const container = document.getElementById('ships-list');
         container.innerHTML = '';
         
         this.ships.forEach(ship => {
             for (let i = 0; i < ship.count; i++) {
                 const shipElement = document.createElement('div');
-                shipElement.className = 'ship-to-place';
+                shipElement.className = 'ship-item';
                 shipElement.dataset.size = ship.size;
                 shipElement.dataset.name = ship.name;
-                shipElement.innerHTML = Array(ship.size).fill('<div class="ship-part"></div>').join('');
+                
+                // Создаем части корабля
+                for (let j = 0; j < ship.size; j++) {
+                    const part = document.createElement('div');
+                    part.className = 'ship-part';
+                    shipElement.appendChild(part);
+                }
                 
                 shipElement.addEventListener('click', () => {
-                    this.currentShip = {
-                        size: ship.size,
-                        name: ship.name,
-                        element: shipElement
-                    };
-                    document.querySelectorAll('.ship-to-place').forEach(s => s.style.opacity = '0.5');
-                    shipElement.style.opacity = '1';
-                    shipElement.style.border = '2px solid #4caf50';
+                    this.selectShip(shipElement, ship.size, ship.name);
                 });
                 
                 container.appendChild(shipElement);
             }
         });
+        
+        // Выбираем первый корабль
+        const firstShip = container.querySelector('.ship-item');
+        if (firstShip) {
+            this.selectShip(firstShip, firstShip.dataset.size, firstShip.dataset.name);
+        }
+    }
+    
+    selectShip(element, size, name) {
+        // Снимаем выделение со всех кораблей
+        document.querySelectorAll('.ship-item').forEach(ship => {
+            ship.classList.remove('selected');
+        });
+        
+        // Выделяем выбранный корабль
+        element.classList.add('selected');
+        
+        this.currentShip = {
+            size: parseInt(size),
+            name: name,
+            element: element
+        };
+        
+        this.updateStatus(`Выбран ${name} (${size} палуб)`);
     }
     
     setupEventListeners() {
@@ -93,20 +178,35 @@ class BattleshipGame {
         document.getElementById('random-ships').addEventListener('click', () => this.randomPlacement());
         document.getElementById('rotate-ship').addEventListener('click', () => this.rotateShip());
         document.getElementById('clear-board').addEventListener('click', () => this.clearBoard());
-        document.getElementById('difficulty').addEventListener('change', (e) => this.difficulty = e.target.value);
+        document.getElementById('difficulty').addEventListener('change', (e) => {
+            this.difficulty = e.target.value;
+            this.addLogMessage(`Уровень сложности изменен: ${this.getDifficultyName()}`, "system");
+        });
         document.getElementById('play-again').addEventListener('click', () => this.resetGame());
-        
-        // Показываем первый корабль для размещения
-        setTimeout(() => {
-            const firstShip = document.querySelector('.ship-to-place');
-            if (firstShip) firstShip.click();
-        }, 100);
+        document.getElementById('close-modal').addEventListener('click', () => this.hideModal());
+        document.getElementById('share-result').addEventListener('click', () => this.shareResult());
+        document.getElementById('clear-log').addEventListener('click', () => this.clearLog());
+        document.getElementById('volume').addEventListener('input', (e) => {
+            this.volume = e.target.value / 100;
+            this.updateVolume();
+        });
+    }
+    
+    getDifficultyName() {
+        const names = {
+            easy: "Лёгкий",
+            medium: "Средний",
+            hard: "Сложный"
+        };
+        return names[this.difficulty] || "Средний";
     }
     
     rotateShip() {
         this.shipOrientation = this.shipOrientation === 'horizontal' ? 'vertical' : 'horizontal';
-        document.getElementById('rotate-ship').innerHTML = 
-            `<i class="fas fa-rotate"></i> ${this.shipOrientation === 'horizontal' ? 'Горизонтально' : 'Вертикально'}`;
+        document.getElementById('orientation').textContent = 
+            this.shipOrientation === 'horizontal' ? 'Горизонтальная' : 'Вертикальная';
+        
+        this.addLogMessage(`Ориентация корабля изменена на ${this.shipOrientation === 'horizontal' ? 'горизонтальную' : 'вертикальную'}`, "system");
     }
     
     placeShip(row, col) {
@@ -144,7 +244,7 @@ class BattleshipGame {
         }
         
         if (!valid) {
-            this.updateStatus("Нельзя разместить корабль здесь!");
+            this.showError("Нельзя разместить корабль здесь!");
             return;
         }
         
@@ -165,16 +265,25 @@ class BattleshipGame {
         this.currentShip.element.remove();
         
         // Выбираем следующий корабль
-        const nextShip = document.querySelector('.ship-to-place');
+        const nextShip = document.querySelector('.ship-item');
         if (nextShip) {
             nextShip.click();
-            this.updateStatus(`Разместите ${this.currentShip.name} (${this.currentShip.size} палуб)`);
         } else {
             this.currentShip = null;
             this.updateStatus("Все корабли размещены! Нажмите 'Начать игру'");
         }
         
         this.updateShipCounters();
+        this.addLogMessage(`${this.currentShip?.name || 'Корабль'} размещен`, "system");
+    }
+    
+    showError(message) {
+        this.updateStatus(message);
+        const statusBar = document.querySelector('.status-bar');
+        statusBar.style.animation = 'none';
+        setTimeout(() => {
+            statusBar.style.animation = 'pulse 0.5s';
+        }, 10);
     }
     
     randomPlacement() {
@@ -186,8 +295,9 @@ class BattleshipGame {
         this.ships.forEach(ship => {
             for (let i = 0; i < ship.count; i++) {
                 let placed = false;
+                let attempts = 0;
                 
-                while (!placed) {
+                while (!placed && attempts < 100) {
                     const orientation = Math.random() > 0.5 ? 'horizontal' : 'vertical';
                     const row = Math.floor(Math.random() * this.gridSize);
                     const col = Math.floor(Math.random() * this.gridSize);
@@ -196,6 +306,7 @@ class BattleshipGame {
                         this.placeRandomShip(row, col, ship.size, orientation, ship.name);
                         placed = true;
                     }
+                    attempts++;
                 }
             }
         });
@@ -203,6 +314,7 @@ class BattleshipGame {
         this.createShipSelector();
         this.updateStatus("Корабли расставлены случайно!");
         this.updateShipCounters();
+        this.addLogMessage("Корабли расставлены случайным образом", "system");
     }
     
     canPlaceShip(row, col, size, orientation) {
@@ -261,15 +373,17 @@ class BattleshipGame {
         this.createShipSelector();
         this.updateStatus("Поле очищено. Расставьте корабли");
         this.updateShipCounters();
+        this.addLogMessage("Поле игрока очищено", "system");
     }
     
     startGame() {
         if (this.playerShips.length !== 10) {
-            this.updateStatus("Разместите все корабли перед началом игры!");
+            this.showError("Разместите все корабли перед началом игры!");
             return;
         }
         
         this.gameStarted = true;
+        this.startTime = Date.now();
         this.setupBotShips();
         
         // Отключаем возможность кликать по своим кораблям
@@ -279,7 +393,30 @@ class BattleshipGame {
         });
         
         this.updateStatus("Игра началась! Ваш ход");
-        this.addLogMessage("Игра началась!", "system");
+        this.updateTurnIndicator(true);
+        this.addLogMessage("=== ИГРА НАЧАЛАСЬ ===", "system");
+        this.addLogMessage(`Уровень сложности: ${this.getDifficultyName()}`, "system");
+        
+        // Включаем звук моря громче
+        this.audio.sea.volume = this.volume * 0.5;
+    }
+    
+    updateTurnIndicator(playerTurn) {
+        const indicator = document.querySelector('.turn-indicator');
+        const dot = document.querySelector('.turn-dot');
+        const text = document.getElementById('turn-text');
+        
+        if (playerTurn) {
+            indicator.style.background = 'rgba(79, 195, 247, 0.2)';
+            indicator.style.borderColor = '#4FC3F7';
+            dot.style.background = '#4FC3F7';
+            text.textContent = 'Ваш ход';
+        } else {
+            indicator.style.background = 'rgba(255, 107, 107, 0.2)';
+            indicator.style.borderColor = '#FF6B6B';
+            dot.style.background = '#FF6B6B';
+            text.textContent = 'Ход противника';
+        }
     }
     
     setupBotShips() {
@@ -288,8 +425,9 @@ class BattleshipGame {
         this.ships.forEach(ship => {
             for (let i = 0; i < ship.count; i++) {
                 let placed = false;
+                let attempts = 0;
                 
-                while (!placed) {
+                while (!placed && attempts < 100) {
                     const orientation = Math.random() > 0.5 ? 'horizontal' : 'vertical';
                     const row = Math.floor(Math.random() * this.gridSize);
                     const col = Math.floor(Math.random() * this.gridSize);
@@ -298,6 +436,7 @@ class BattleshipGame {
                         this.placeBotShip(row, col, ship.size, orientation, ship.name);
                         placed = true;
                     }
+                    attempts++;
                 }
             }
         });
@@ -357,18 +496,26 @@ class BattleshipGame {
             return;
         }
         
+        this.playerShots++;
         let hit = false;
         let sunkShip = null;
+        
+        // Проигрываем звук выстрела
+        this.playSound('shot');
         
         // Проверяем попадание
         for (const ship of this.botShips) {
             for (const shipCell of ship.cells) {
                 if (shipCell.row === row && shipCell.col === col) {
                     hit = true;
+                    this.playerSuccessfulShots++;
                     ship.hits++;
                     this.playerHits++;
                     
                     cell.classList.add('hit');
+                    
+                    // Проигрываем звук попадания
+                    this.playSound('hit');
                     
                     // Проверяем, потоплен ли корабль
                     if (ship.hits === ship.size) {
@@ -378,6 +525,9 @@ class BattleshipGame {
                             const sunkCell = document.querySelector(`#bot-grid .cell[data-row="${row}"][data-col="${col}"]`);
                             sunkCell.classList.add('sunk');
                         });
+                        
+                        // Проигрываем звук потопления
+                        this.playSound('sunk');
                     }
                     
                     break;
@@ -388,11 +538,12 @@ class BattleshipGame {
         
         if (!hit) {
             cell.classList.add('miss');
-            this.addLogMessage(`Вы стреляете в (${row+1}, ${col+1}) - Промах!`, "player");
+            this.playSound('miss');
+            this.addLogMessage(`Ваш выстрел в (${this.getCellName(row, col)}) - Промах!`, "player");
         } else if (sunkShip) {
-            this.addLogMessage(`Вы стреляете в (${row+1}, ${col+1}) - Потоплен ${sunkShip.name}!`, "player");
+            this.addLogMessage(`Ваш выстрел в (${this.getCellName(row, col)}) - Потоплен ${sunkShip.name}!`, "player");
         } else {
-            this.addLogMessage(`Вы стреляете в (${row+1}, ${col+1}) - Попадание!`, "player");
+            this.addLogMessage(`Ваш выстрел в (${this.getCellName(row, col)}) - Попадание!`, "player");
         }
         
         this.updateHits();
@@ -407,48 +558,59 @@ class BattleshipGame {
         // Если игрок попал, он ходит снова
         if (hit && !sunkShip) {
             this.updateStatus("Вы попали! Стреляйте снова");
+            this.updateTurnIndicator(true);
             return;
         }
         
         // Ход бота
         this.updateStatus("Ход противника...");
-        setTimeout(() => this.botAttack(), 800);
+        this.updateTurnIndicator(false);
+        setTimeout(() => this.botAttack(), 1000);
+    }
+    
+    getCellName(row, col) {
+        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+        return `${letters[col]}${row + 1}`;
     }
     
     botAttack() {
         let row, col;
-        let validCell = false;
         
         // Умный ИИ для бота
         if (this.difficulty === 'easy') {
-            // Легкий уровень - случайные выстрелы
             [row, col] = this.getRandomCell();
         } else if (this.difficulty === 'medium') {
-            // Средний уровень - иногда целенаправленно стреляет
             if (this.huntingMode && Math.random() > 0.3) {
                 [row, col] = this.getSmartCell();
             } else {
                 [row, col] = this.getRandomCell();
             }
         } else {
-            // Сложный уровень - умная стратегия
             [row, col] = this.getSmartCell();
         }
         
         const cell = document.querySelector(`#player-grid .cell[data-row="${row}"][data-col="${col}"]`);
         
+        this.botShots++;
         let hit = false;
         let sunkShip = null;
+        
+        // Проигрываем звук выстрела
+        this.playSound('shot');
         
         // Проверяем попадание
         for (const ship of this.playerShips) {
             for (const shipCell of ship.cells) {
                 if (shipCell.row === row && shipCell.col === col) {
                     hit = true;
+                    this.botSuccessfulShots++;
                     ship.hits++;
                     this.botHits++;
                     
                     cell.classList.add('hit');
+                    
+                    // Проигрываем звук попадания
+                    this.playSound('hit');
                     
                     // Обновляем память бота для умного ИИ
                     if (this.difficulty !== 'easy') {
@@ -474,6 +636,9 @@ class BattleshipGame {
                             sunkCell.classList.add('sunk');
                         });
                         
+                        // Проигрываем звук потопления
+                        this.playSound('sunk');
+                        
                         // Сбрасываем режим охоты при потоплении корабля
                         if (this.difficulty !== 'easy') {
                             this.huntingMode = false;
@@ -490,15 +655,16 @@ class BattleshipGame {
         
         if (!hit) {
             cell.classList.add('miss');
-            this.addLogMessage(`Противник стреляет в (${row+1}, ${col+1}) - Промах!`, "bot");
+            this.playSound('miss');
+            this.addLogMessage(`Противник стреляет в (${this.getCellName(row, col)}) - Промах!`, "bot");
             
             if (this.difficulty !== 'easy') {
                 this.botMemory.push({ row, col, hit: false });
             }
         } else if (sunkShip) {
-            this.addLogMessage(`Противник стреляет в (${row+1}, ${col+1}) - Потоплен ваш ${sunkShip.name}!`, "bot");
+            this.addLogMessage(`Противник стреляет в (${this.getCellName(row, col)}) - Потоплен ваш ${sunkShip.name}!`, "bot");
         } else {
-            this.addLogMessage(`Противник стреляет в (${row+1}, ${col+1}) - Попадание по вашему кораблю!`, "bot");
+            this.addLogMessage(`Противник стреляет в (${this.getCellName(row, col)}) - Попадание по вашему кораблю!`, "bot");
         }
         
         this.updateHits();
@@ -513,17 +679,20 @@ class BattleshipGame {
         // Если бот попал, он ходит снова (на среднем и сложном уровне)
         if (hit && !sunkShip && this.difficulty !== 'easy') {
             this.updateStatus("Противник попал! Он ходит снова...");
-            setTimeout(() => this.botAttack(), 800);
+            this.updateTurnIndicator(false);
+            setTimeout(() => this.botAttack(), 1000);
         } else {
             this.updateStatus("Ваш ход!");
+            this.updateTurnIndicator(true);
         }
     }
     
     getRandomCell() {
         let row, col;
         let valid = false;
+        let attempts = 0;
         
-        while (!valid) {
+        while (!valid && attempts < 1000) {
             row = Math.floor(Math.random() * this.gridSize);
             col = Math.floor(Math.random() * this.gridSize);
             
@@ -531,6 +700,7 @@ class BattleshipGame {
             if (!cell.classList.contains('hit') && !cell.classList.contains('miss')) {
                 valid = true;
             }
+            attempts++;
         }
         
         return [row, col];
@@ -564,7 +734,7 @@ class BattleshipGame {
         while (attempts < 100) {
             const [row, col] = this.getRandomCell();
             
-            // Проверяем, что клетка не окружена промахами (эффект "креста")
+            // Проверяем, что клетка не окружена промахами
             let goodCell = true;
             const directions = [[1,0], [-1,0], [0,1], [0,-1]];
             
@@ -574,7 +744,6 @@ class BattleshipGame {
                 if (nr >= 0 && nr < this.gridSize && nc >= 0 && nc < this.gridSize) {
                     const neighbor = document.querySelector(`#player-grid .cell[data-row="${nr}"][data-col="${nc}"]`);
                     if (neighbor.classList.contains('miss')) {
-                        // На среднем уровне иногда игнорируем это правило
                         if (this.difficulty === 'medium' && Math.random() > 0.7) {
                             continue;
                         }
@@ -600,7 +769,8 @@ class BattleshipGame {
     }
     
     updateStatus(message) {
-        document.getElementById('status').textContent = message;
+        const statusElement = document.getElementById('status');
+        statusElement.querySelector('span').textContent = message;
     }
     
     updateHits() {
@@ -612,41 +782,137 @@ class BattleshipGame {
         const playerAlive = this.playerShips.filter(ship => ship.hits < ship.size).length;
         const botAlive = this.botShips.filter(ship => ship.hits < ship.size).length;
         
-        document.getElementById('player-ships').textContent = `${playerAlive}/10`;
-        document.getElementById('bot-ships').textContent = `${botAlive}/10`;
+        document.getElementById('player-ships').textContent = playerAlive;
+        document.getElementById('player-counter').textContent = playerAlive;
+        document.getElementById('bot-ships').textContent = botAlive;
+        document.getElementById('bot-counter').textContent = botAlive;
     }
     
     addLogMessage(message, type) {
         const logContent = document.getElementById('log-content');
         const messageElement = document.createElement('div');
-        messageElement.className = `log-message ${type}`;
-        messageElement.textContent = `[${new Date().toLocaleTimeString().slice(0,5)}] ${message}`;
+        messageElement.className = `log-entry ${type}`;
+        
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        messageElement.innerHTML = `
+            <span class="time">[${time}]</span>
+            <span class="message">${message}</span>
+        `;
         
         logContent.appendChild(messageElement);
         logContent.scrollTop = logContent.scrollHeight;
+    }
+    
+    clearLog() {
+        const logContent = document.getElementById('log-content');
+        logContent.innerHTML = '<div class="log-entry welcome"><span class="time">[Журнал очищен]</span><span class="message">Начните новую игру!</span></div>';
     }
     
     showWinModal(playerWon) {
         const modal = document.getElementById('win-modal');
         const title = document.getElementById('win-title');
         const message = document.getElementById('win-message');
+        const trophy = document.getElementById('trophy-icon');
         
+        // Останавливаем фоновую музыку
+        this.audio.sea.pause();
+        this.audio.sea.currentTime = 0;
+        
+        // Проигрываем звук победы или поражения
         if (playerWon) {
+            this.playSound('win');
             title.textContent = "🎉 Победа!";
-            message.textContent = `Вы победили бота за ${this.playerHits} попаданий!`;
-            title.style.color = "#4caf50";
+            message.textContent = "Вы одержали победу в морском сражении!";
+            trophy.textContent = "🏆";
         } else {
+            this.playSound('lose');
             title.textContent = "💀 Поражение";
-            message.textContent = `Бот победил вас за ${this.botHits} попаданий!`;
-            title.style.color = "#ff5252";
+            message.textContent = "Флот противника оказался сильнее...";
+            trophy.textContent = "⚓";
         }
+        
+        // Обновляем статистику
+        this.updateStats(playerWon);
         
         modal.style.display = 'flex';
         this.gameStarted = false;
     }
     
-    resetGame() {
+    updateStats(playerWon) {
+        const accuracy = this.playerShots > 0 ? 
+            Math.round((this.playerSuccessfulShots / this.playerShots) * 100) : 0;
+        
+        const minutes = Math.floor(this.gameTime / 60);
+        const seconds = this.gameTime % 60;
+        const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        document.getElementById('stat-shots').textContent = this.playerShots;
+        document.getElementById('stat-accuracy').textContent = `${accuracy}%`;
+        document.getElementById('stat-sunk').textContent = this.playerHits;
+        document.getElementById('stat-time').textContent = timeString;
+        
+        // Оценка производительности
+        const performanceFill = document.getElementById('performance-fill');
+        const performanceText = document.getElementById('performance-text');
+        
+        let performance = 0;
+        let text = "";
+        
+        if (playerWon) {
+            if (this.playerShots <= 50) {
+                performance = 100;
+                text = "Идеальный результат!";
+            } else if (this.playerShots <= 70) {
+                performance = 80;
+                text = "Отличная игра!";
+            } else if (this.playerShots <= 90) {
+                performance = 60;
+                text = "Хороший результат";
+            } else {
+                performance = 40;
+                text = "Можно лучше";
+            }
+        } else {
+            performance = Math.min(30, accuracy);
+            text = "Попробуйте еще раз!";
+        }
+        
+        performanceFill.style.width = `${performance}%`;
+        performanceText.textContent = text;
+    }
+    
+    hideModal() {
         document.getElementById('win-modal').style.display = 'none';
+        // Возобновляем фоновую музыку
+        this.audio.sea.volume = this.volume * 0.3;
+        this.audio.sea.play();
+    }
+    
+    shareResult() {
+        const stats = {
+            shots: this.playerShots,
+            accuracy: Math.round((this.playerSuccessfulShots / this.playerShots) * 100),
+            sunk: this.playerHits,
+            time: this.gameTime
+        };
+        
+        const text = `Морской бой: ${stats.shots} выстрелов, точность ${stats.accuracy}%, потоплено ${stats.sunk} кораблей за ${Math.floor(stats.time/60)}:${(stats.time%60).toString().padStart(2,'0')}`;
+        
+        if (navigator.share) {
+            navigator.share({
+                title: 'Морской бой - Результат',
+                text: text,
+                url: window.location.href
+            });
+        } else {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Результат скопирован в буфер обмена!');
+            });
+        }
+    }
+    
+    resetGame() {
+        this.hideModal();
         
         // Сброс всех переменных
         this.playerShips = [];
@@ -660,6 +926,12 @@ class BattleshipGame {
         this.lastHit = null;
         this.huntingMode = false;
         this.huntDirections = [];
+        this.playerShots = 0;
+        this.playerSuccessfulShots = 0;
+        this.botShots = 0;
+        this.botSuccessfulShots = 0;
+        this.gameTime = 0;
+        this.startTime = Date.now();
         
         // Очистка сеток
         this.createGrids();
@@ -667,16 +939,42 @@ class BattleshipGame {
         this.updateStatus("Расставьте ваши корабли");
         this.updateHits();
         this.updateShipCounters();
+        this.updateTurnIndicator(true);
         
-        // Очистка лога
-        document.getElementById('log-content').innerHTML = '';
+        // Сброс ориентации
+        document.getElementById('orientation').textContent = 'Горизонтальная';
         
-        // Сброс кнопки поворота
-        document.getElementById('rotate-ship').innerHTML = '<i class="fas fa-rotate"></i> Повернуть корабль';
+        // Очистка лога (оставляем приветственное сообщение)
+        this.clearLog();
+        this.addLogMessage("Новая игра начата!", "system");
+        
+        // Возобновляем фоновую музыку
+        this.audio.sea.volume = this.volume * 0.3;
+        this.audio.sea.play();
     }
 }
 
-// Инициализация игры при загрузке страницы
+// Инициализация игры при полной загрузке страницы
 window.addEventListener('DOMContentLoaded', () => {
+    // Проверяем, поддерживается ли аудио
+    const audioCheck = document.createElement('audio');
+    const canPlay = !!audioCheck.canPlayType;
+    
+    if (!canPlay) {
+        console.warn('Аудио не поддерживается в этом браузере');
+    }
+    
+    // Запускаем игру
     window.game = new BattleshipGame();
+    
+    // Добавляем стили для анимации пульсации
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); }
+        }
+    `;
+    document.head.appendChild(style);
 });
