@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Морской бой</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-anchor"></i> Морской бой</h1>
+            <div class="game-info">
+                <div class="score">Попадания: <span id="player-hits">0</span> | <span id="bot-hits">0</span></div>
+                <div class="status" id="status">Расставьте ваши корабли</div>
+            </div>
+        </header>
+
+        <div class="game-controls">
+            <button id="start-game" class="btn"><i class="fas fa-play"></i> Начать игру</button>
+            <button id="random-ships" class="btn"><i class="fas fa-random"></i> Расставить случайно</button>
+            <button id="rotate-ship" class="btn"><i class="fas fa-rotate"></i> Повернуть корабль</button>
+            <button id="clear-board" class="btn"><i class="fas fa-trash"></i> Очистить поле</button>
+            <select id="difficulty" class="btn">
+                <option value="easy">Легкий уровень</option>
+                <option value="medium" selected>Средний уровень</option>
+                <option value="hard">Сложный уровень</option>
+            </select>
+        </div>
+
+        <div class="game-area">
+            <div class="player-section">
+                <h2><i class="fas fa-user"></i> Ваше поле</h2>
+                <div class="ships-remaining">
+                    <div class="ship-counter" id="player-ships">10/10</div>
+                </div>
+                <div class="grid" id="player-grid"></div>
+            </div>
+
+            <div class="divider">
+                <div class="vs">VS</div>
+            </div>
+
+            <div class="bot-section">
+                <h2><i class="fas fa-robot"></i> Противник (ИИ)</h2>
+                <div class="ships-remaining">
+                    <div class="ship-counter" id="bot-ships">10/10</div>
+                </div>
+                <div class="grid" id="bot-grid"></div>
+            </div>
+        </div>
+
+        <div class="ship-selector">
+            <h3>Выберите корабль для размещения:</h3>
+            <div class="ships-to-place" id="ships-to-place">
+                <!-- Корабли будут добавлены через JS -->
+            </div>
+            <div class="ship-legends">
+                <div class="legend-item"><span class="legend-cell ship-cell"></span> - Корабль</div>
+                <div class="legend-item"><span class="legend-cell hit-cell"></span> - Попадание</div>
+                <div class="legend-item"><span class="legend-cell miss-cell"></span> - Промах</div>
+                <div class="legend-item"><span class="legend-cell sunk-cell"></span> - Потоплен</div>
+            </div>
+        </div>
+
+        <div class="log" id="game-log">
+            <h3>Ход игры:</h3>
+            <div class="log-content" id="log-content"></div>
+        </div>
+
+        <footer>
+            <p>Морской бой v1.0 | Разработано для GitHub Pages | Управление: кликните по клетке противника для выстрела</p>
+        </footer>
+    </div>
+
+    <div id="win-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="win-title">Победа!</h2>
+            <p id="win-message">Вы победили бота!</p>
+            <button id="play-again" class="btn"><i class="fas fa-redo"></i> Играть снова</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
